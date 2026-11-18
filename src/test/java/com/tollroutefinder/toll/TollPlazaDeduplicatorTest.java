@@ -55,6 +55,36 @@ class TollPlazaDeduplicatorTest {
     }
 
     @Test
+    void mergesNearbyPlazasWhenOneNameContainsTheOther() {
+        // Real rows from the dataset, ~0.6 km apart: same plaza, one record prefixed with the city
+        List<TollPlaza> result = deduplicator.deduplicate(List.of(
+                raw("Banglaore-Nelamangala Toll Plaza", 13.09062, 77.400019),
+                raw("Nelamangala Toll Plaza", 13.0925202, 77.394433))).plazas();
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void containedNameNeedsToBeCloserThanAnExactNameMatch() {
+        // Real rows, ~1.24 km apart: a city-named plaza and a ring-road plaza in the same city are different
+        List<TollPlaza> result = deduplicator.deduplicate(List.of(
+                raw("Ahmedabad Toll Plaza", 22.9758307, 72.650098),
+                raw("Ahmedabad Ring Road 2 Toll Plaza", 22.972483, 72.6616119))).plazas();
+
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
+    void doesNotMergeOnVeryShortContainedNames() {
+        // "Bela" is inside "Belagavi" but too short to be meaningful evidence of the same plaza
+        List<TollPlaza> result = deduplicator.deduplicate(List.of(
+                raw("Bela Toll Plaza", 15.85, 74.50),
+                raw("Belagavi Toll Plaza", 15.855, 74.50))).plazas();
+
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     void keepsDistinctPlazasThatShareANameButAreFarApart() {
         List<TollPlaza> result = deduplicator.deduplicate(List.of(
                 raw("Dhamnod Toll Plaza", 23.41805978, 74.99684426),

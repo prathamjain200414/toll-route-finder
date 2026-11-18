@@ -13,7 +13,9 @@ import java.util.regex.Pattern;
  * Two records are considered the same plaza when either:
  * <ul>
  *   <li>they are within {@code duplicateRadiusKm} of each other (same spot, whatever the name), or</li>
- *   <li>they are within {@code sameNameRadiusKm} and their normalised names match or differ only by a small typo.</li>
+ *   <li>they are within {@code sameNameRadiusKm} and their normalised names match, differ only by a small typo,
+ *       or (within {@value #CONTAINED_NAME_RADIUS_KM} km) one contains the other, e.g. "Banglaore-Nelamangala"
+ *       vs "Nelamangala". Containment is weaker evidence (a bare city name), hence the tighter radius.</li>
  * </ul>
  * The first named record in a cluster provides the name and coordinates, so the output is deterministic.
  * Unnamed records ("nan", blank) join a nearby named plaza if there is one.
@@ -23,7 +25,8 @@ public class TollPlazaDeduplicator {
     private static final Pattern NOISE_WORDS = Pattern.compile("\\b(toll|plaza|plaz|booth|gate|tollway)\\b");
     private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^a-z0-9]");
     private static final int MAX_TYPO_DISTANCE = 2;
-    private static final int MIN_LENGTH_FOR_TYPO_MATCH = 5;
+    private static final int MIN_LENGTH_FOR_FUZZY_MATCH = 5;
+    static final double CONTAINED_NAME_RADIUS_KM = 1.0;
 
     private final double duplicateRadiusKm;
     private final double sameNameRadiusKm;
@@ -54,22 +57,27 @@ public class TollPlazaDeduplicator {
             if (distance <= duplicateRadiusKm) {
                 return cluster;
             }
-            if (distance <= sameNameRadiusKm && namesMatch(cluster.normalisedName, normalised)) {
+            if (distance <= sameNameRadiusKm && namesMatch(cluster.normalisedName, normalised, distance)) {
                 return cluster;
             }
         }
         return null;
     }
 
-    private static boolean namesMatch(String a, String b) {
+    private static boolean namesMatch(String a, String b, double distanceKm) {
         if (a.isEmpty() || b.isEmpty()) {
             return false;
         }
         if (a.equals(b)) {
             return true;
         }
-        return Math.min(a.length(), b.length()) >= MIN_LENGTH_FOR_TYPO_MATCH
-                && levenshtein(a, b) <= MAX_TYPO_DISTANCE;
+        if (Math.min(a.length(), b.length()) < MIN_LENGTH_FOR_FUZZY_MATCH) {
+            return false;
+        }
+        if (levenshtein(a, b) <= MAX_TYPO_DISTANCE) {
+            return true;
+        }
+        return distanceKm <= CONTAINED_NAME_RADIUS_KM && (a.contains(b) || b.contains(a));
     }
 
     /**

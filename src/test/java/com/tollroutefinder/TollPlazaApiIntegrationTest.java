@@ -78,7 +78,7 @@ class TollPlazaApiIntegrationTest {
 
     @Test
     void startupImportsAndIndexesTheCleanedTollData() {
-        assertThat(index.size()).isEqualTo(1453);
+        assertThat(index.size()).isEqualTo(1447);
     }
 
     @Test
