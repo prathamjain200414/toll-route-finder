@@ -48,7 +48,8 @@ class TollPlazaControllerTest {
     }
 
     private static SearchOutcome outcome(boolean cacheHit, TollOnRoute... tolls) {
-        return new SearchOutcome(new TollPlazaSearchResult("110001", "560001", 2100.04, "OSRM", List.of(tolls)), cacheHit);
+        return new SearchOutcome(new TollPlazaSearchResult("110001", "560001", 2100.04, 1800, "OSRM",
+                List.of(new GeoPoint(28.6, 77.2), new GeoPoint(12.9, 77.6)), List.of(tolls)), cacheHit);
     }
 
     private static TollOnRoute toll(String name, double lat, double lon, double fromSource) {

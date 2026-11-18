@@ -67,4 +67,19 @@ class RouteLineTest {
         assertThatThrownBy(() -> new RouteLine(List.of(new GeoPoint(1, 1))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void simplificationDropsCollinearPointsButKeepsTheEnds() {
+        List<GeoPoint> points = new java.util.ArrayList<>();
+        for (double lat = 10.0; lat <= 12.0 + 1e-9; lat += 0.01) {
+            points.add(new GeoPoint(lat, 77.0));
+        }
+        points.add(new GeoPoint(12.0, 78.0));
+
+        List<GeoPoint> simplified = new RouteLine(points).simplified(0.1);
+
+        assertThat(simplified).hasSize(3);
+        assertThat(simplified.get(0)).isEqualTo(points.get(0));
+        assertThat(simplified.get(2)).isEqualTo(new GeoPoint(12.0, 78.0));
+    }
 }

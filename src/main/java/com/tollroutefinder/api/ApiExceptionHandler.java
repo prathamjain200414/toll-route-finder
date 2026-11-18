@@ -30,6 +30,7 @@ public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     static final String INVALID_PINCODE = "Invalid source or destination pincode";
+    static final String INVALID_REQUEST = "Invalid request";
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
@@ -37,7 +38,10 @@ public class ApiExceptionHandler {
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .sorted()
                 .toList();
-        return respond(HttpStatus.BAD_REQUEST, new ErrorResponse(INVALID_PINCODE, details));
+        // The assignment's message for bad pincodes; other fields (e.g. the toll audit's list) get a generic one.
+        boolean onlyPincodes = e.getBindingResult().getFieldErrors().stream()
+                .allMatch(error -> error.getField().endsWith("Pincode"));
+        return respond(HttpStatus.BAD_REQUEST, new ErrorResponse(onlyPincodes ? INVALID_PINCODE : INVALID_REQUEST, details));
     }
 
     @ExceptionHandler(InvalidPincodeException.class)

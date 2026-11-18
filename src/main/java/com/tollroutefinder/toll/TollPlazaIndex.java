@@ -37,11 +37,16 @@ public class TollPlazaIndex {
             tree.insert(new Envelope(p.longitude(), p.longitude(), p.latitude(), p.latitude()), plaza);
         }
         tree.build(); // build eagerly: lazy building on first query is not thread-safe
-        this.snapshot = new Snapshot(tree, plazas.size());
+        this.snapshot = new Snapshot(tree, List.copyOf(plazas));
     }
 
     public int size() {
-        return snapshot.size();
+        return snapshot.plazas().size();
+    }
+
+    /** Every indexed plaza, for lookups that are not spatial (e.g. by name). */
+    public List<TollPlaza> all() {
+        return snapshot.plazas();
     }
 
     /**
@@ -49,7 +54,7 @@ public class TollPlazaIndex {
      */
     public List<TollPlaza> candidatesNear(RouteLine route, double bufferKm) {
         Snapshot current = this.snapshot;
-        if (current.size() == 0) {
+        if (current.plazas().isEmpty()) {
             return List.of();
         }
         double buffer = GeoMath.kmToDegreeBuffer(bufferKm);
@@ -69,11 +74,11 @@ public class TollPlazaIndex {
         return new ArrayList<>(found.keySet());
     }
 
-    private record Snapshot(STRtree tree, int size) {
+    private record Snapshot(STRtree tree, List<TollPlaza> plazas) {
         static Snapshot empty() {
             STRtree tree = new STRtree();
             tree.build();
-            return new Snapshot(tree, 0);
+            return new Snapshot(tree, List.of());
         }
     }
 }

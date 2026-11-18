@@ -1,5 +1,10 @@
 package com.tollroutefinder.geo;
 
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
+
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -7,6 +12,8 @@ import java.util.List;
  * be projected onto the route to get both its offset from the road and its chainage (distance from the start).
  */
 public final class RouteLine {
+
+    private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 
     private final List<GeoPoint> points;
     private final double[] cumulativeKm;
@@ -72,6 +79,20 @@ public final class RouteLine {
             }
         }
         return new Projection(bestOffset, bestAlong);
+    }
+
+    /**
+     * The route with redundant points removed (Douglas-Peucker): no point of the original route is more than
+     * roughly {@code toleranceKm} from the simplified one. A 850 km highway route shrinks from ~10k to a few
+     * hundred points, small enough to cache and to send to a browser.
+     */
+    public List<GeoPoint> simplified(double toleranceKm) {
+        Coordinate[] coordinates = points.stream()
+                .map(p -> new Coordinate(p.longitude(), p.latitude()))
+                .toArray(Coordinate[]::new);
+        var line = GEOMETRY_FACTORY.createLineString(coordinates);
+        var simplified = DouglasPeuckerSimplifier.simplify(line, toleranceKm / GeoMath.KM_PER_DEGREE);
+        return Arrays.stream(simplified.getCoordinates()).map(c -> new GeoPoint(c.y, c.x)).toList();
     }
 
     private static double clamp(double t) {

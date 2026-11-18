@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toll Route Finder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #17191c; --muted: #5f6670; --line: #e3e6ea;
+    --accent: #1f6feb; --accent-text: #ffffff; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --chip: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --text: #e6e9ed; --muted: #98a1ab; --line: #2a3038;
+      --accent: #4c8dff; --accent-text: #0b0d10; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --chip: #222831;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 18px 16px 8px; max-width: 1200px; margin: 0 auto; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 14px; }
+  a { color: var(--accent); }
+  main { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; display: grid; gap: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  input { width: 9.5em; letter-spacing: .04em; }
+  textarea { width: 100%; min-height: 150px; resize: vertical; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 9px 16px; background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button:disabled { opacity: .6; cursor: progress; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .presets button { background: var(--chip); color: var(--text); font-weight: 500; padding: 6px 10px; font-size: 13px; }
+  .status { font-size: 14px; color: var(--muted); min-height: 1.4em; margin: 8px 0 0; }
+  .status.error { color: var(--bad); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; }
+  #map { height: 560px; border-radius: 10px; border: 1px solid var(--line); }
+  .list { max-height: 560px; overflow: auto; padding: 0; }
+  .list h2, .panel h2 { font-size: 15px; margin: 0 0 8px; }
+  .list h2 { padding: 12px 14px 0; }
+  ol.tolls { list-style: none; margin: 0; padding: 0 6px 8px; }
+  ol.tolls li { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; padding: 8px; border-radius: 8px; cursor: pointer; }
+  ol.tolls li:hover { background: var(--chip); }
+  .n { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .km { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+  .empty { padding: 8px 14px 14px; color: var(--muted); }
+  .pin { background: var(--accent); color: var(--accent-text); border: 2px solid #fff; border-radius: 50%; width: 24px; height: 24px; display: grid; place-items: center; font: 700 11px system-ui, sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  .pin.off { background: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+  .ON_ROUTE, .CLEAN { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+  .DUPLICATE_CHARGE, .REVIEW { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+  .OFF_ROUTE, .UNKNOWN_PLAZA, .NOT_CHARGED { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+  .audit-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  @media (max-width: 860px) {
+    .layout, .audit-grid { grid-template-columns: 1fr; }
+    #map { height: 380px; }
+    .list { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Toll Route Finder</h1>
+  <span class="muted">Toll plazas between two Indian pincodes</span>
+  <nav><a href="swagger-ui.html">API docs (Swagger)</a><a href="https://github.com/prathamjain200414/toll-route-finder">GitHub</a></nav>
+</header>
+<main>
+  <section class="panel">
+    <form id="plan-form">
+      <label>From pincode <input id="src" inputmode="numeric" maxlength="6" value="560064" required></label>
+      <label>To pincode <input id="dst" inputmode="numeric" maxlength="6" value="411045" required></label>
+      <button id="plan-btn" type="submit">Find tolls</button>
+      <div class="presets" aria-label="Example routes">
+        <button type="button" data-src="560064" data-dst="411045">Bengaluru → Pune</button>
+        <button type="button" data-src="110001" data-dst="560001">Delhi → Bengaluru</button>
+        <button type="button" data-src="400001" data-dst="380001">Mumbai → Ahmedabad</button>
+        <button type="button" data-src="560001" data-dst="560034">Within Bengaluru</button>
+      </div>
+    </form>
+    <p id="plan-status" class="status" role="status"></p>
+  </section>
+
+  <section class="stats" id="stats" hidden>
+    <div class="stat"><b id="s-km">–</b><span>road distance (km)</span></div>
+    <div class="stat"><b id="s-tolls">–</b><span>toll plazas</span></div>
+    <div class="stat"><b id="s-hours">–</b><span>drive hours (no stops)</span></div>
+    <div class="stat"><b id="s-eway">–</b><span>e-way bill validity (days)</span></div>
+    <div class="stat"><b id="s-cache">–</b><span id="s-provider">routing</span></div>
+  </section>
+
+  <section class="layout">
+    <div id="map" aria-label="Route map"></div>
+    <div class="panel list">
+      <h2>Toll plazas in driving order</h2>
+      <ol class="tolls" id="toll-list"></ol>
+      <p class="empty" id="toll-empty">Pick a route to see its toll plazas.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Audit a trip's toll charges</h2>
+    <p class="muted">Paste the toll plaza names from a FASTag statement or transporter invoice for the trip above, one per line, in any spelling. Each charge is checked against the planned route.</p>
+    <div class="audit-grid">
+      <div>
+        <textarea id="charges" spellcheck="false">Navayuga Bengaluru
+Kulumepalya
+Chokkanahalli
+Karajeevanahalli
+Guilalu
+Kannanakatte
+Thimmalapura
+Hitnal
+Hitnal
+Shahapur
+Vanagari
+Kasaba Bijapur
+Sardewadi Indapur
+Patas</textarea>
+        <p><button id="audit-btn" type="button">Audit charges</button></p>
+      </div>
+      <div>
+        <p id="audit-status" class="status" role="status"></p>
+        <div id="audit-result"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const map = L.map('map', { scrollWheelZoom: false }).setView([20.6, 78.9], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  const routeLayer = L.layerGroup().addTo(map);
+  const auditLayer = L.layerGroup().addTo(map);
+  const markers = [];
+
+  const pin = (label, cls = '') => L.divIcon({ className: '', html: `<div class="pin ${cls}">${label}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
+  const el = (tag, props = {}, ...children) => {
+    const node = Object.assign(document.createElement(tag), props);
+    children.forEach((c) => node.append(c));
+    return node;
+  };
+  const pincodes = () => ({ sourcePincode: $('src').value.trim(), destinationPincode: $('dst').value.trim() });
+
+  // The free host sleeps when idle; the first request after that takes up to ~2 minutes.
+  async function post(path, body, statusEl) {
+    const slow = setTimeout(() => { statusEl.textContent = 'Waking the free-tier server, this can take up to 2 minutes…'; }, 6000);
+    try {
+      const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = json.details && json.details.length ? ` (${json.details.join('; ')})` : '';
+        throw new Error((json.error || `HTTP ${res.status}`) + detail);
+      }
+      return { json, cache: res.headers.get('X-Cache') };
+    } finally {
+      clearTimeout(slow);
+    }
+  }
+
+  async function plan() {
+    const status = $('plan-status');
+    $('plan-btn').disabled = true;
+    status.className = 'status';
+    status.textContent = 'Routing…';
+    const started = performance.now();
+    try {
+      const { json, cache } = await post('api/v1/trips/plan', pincodes(), status);
+      render(json);
+      const ms = Math.round(performance.now() - started);
+      status.textContent = `${json.route.sourcePincode} → ${json.route.destinationPincode} in ${ms} ms`;
+      $('s-cache').textContent = cache === 'HIT' ? 'cached' : 'fresh';
+    } catch (e) {
+      status.className = 'status error';
+      status.textContent = e.message;
+    } finally {
+      $('plan-btn').disabled = false;
+    }
+  }
+
+  function render(plan) {
+    routeLayer.clearLayers();
+    auditLayer.clearLayers();
+    markers.length = 0;
+    const r = plan.route;
+    $('stats').hidden = false;
+    $('s-km').textContent = r.distanceInKm.toLocaleString('en-IN');
+    $('s-tolls').textContent = r.tollPlazaCount;
+    $('s-hours').textContent = r.estimatedDriveHours;
+    $('s-eway').textContent = r.ewayBillValidityDays;
+    $('s-provider').textContent = r.routeProvider;
+
+    const line = plan.path.coordinates.map(([lon, lat]) => [lat, lon]);
+    const poly = L.polyline(line, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(), weight: 5, opacity: .85 }).addTo(routeLayer);
+    L.circleMarker(line[0], { radius: 7, color: '#1a7f37', fillOpacity: 1 }).bindTooltip(`Start ${r.sourcePincode}`).addTo(routeLayer);
+    L.circleMarker(line[line.length - 1], { radius: 7, color: '#cf222e', fillOpacity: 1 }).bindTooltip(`End ${r.destinationPincode}`).addTo(routeLayer);
+
+    const list = $('toll-list');
+    list.replaceChildren();
+    plan.tollPlazas.forEach((t, i) => {
+      const m = L.marker([t.latitude, t.longitude], { icon: pin(i + 1) })
+        .bindPopup(`<b>${escapeHtml(t.name)}</b><br>${t.distanceFromSource} km from start<br>~${t.etaHoursFromStart} h driving`)
+        .addTo(routeLayer);
+      markers.push(m);
+      const li = el('li', {}, el('span', { className: 'n', textContent: i + 1 }), el('span', { textContent: t.name }),
+        el('span', { className: 'km', textContent: `${t.distanceFromSource} km · ${t.etaHoursFromStart} h` }));
+      li.addEventListener('click', () => { map.setView([t.latitude, t.longitude], 12); m.openPopup(); });
+      list.append(li);
+    });
+    $('toll-empty').hidden = plan.tollPlazas.length > 0;
+    $('toll-empty').textContent = 'No toll plazas on this route.';
+    map.fitBounds(poly.getBounds(), { padding: [24, 24] });
+  }
+
+  async function audit() {
+    const status = $('audit-status');
+    const out = $('audit-result');
+    const charged = $('charges').value.split('\n').map((s) => s.trim()).filter(Boolean);
+    $('audit-btn').disabled = true;
+    status.className = 'status';
+    status.textContent = 'Auditing…';
+    try {
+      const { json } = await post('api/v1/trips/toll-audit', { ...pincodes(), chargedTollPlazas: charged }, status);
+      const s = json.summary;
+      status.replaceChildren(el('span', { className: `badge ${s.verdict}`, textContent: s.verdict }),
+        ` ${s.onRoute} on route · ${s.duplicateCharges} duplicate · ${s.offRoute} off route · ${s.unknownPlazas} unknown · ${s.notCharged} not charged`);
+      const rows = json.charges.map((c) => el('tr', {},
+        el('td', { textContent: c.chargedName }),
+        el('td', {}, el('span', { className: `badge ${c.status}`, textContent: c.status.replace('_', ' ') })),
+        el('td', { textContent: c.matchedPlaza || '–' }),
+        el('td', { textContent: c.note })));
+      json.notCharged.forEach((t) => rows.push(el('tr', {},
+        el('td', { textContent: '–' }),
+        el('td', {}, el('span', { className: 'badge NOT_CHARGED', textContent: 'NOT CHARGED' })),
+        el('td', { textContent: t.name }),
+        el('td', { textContent: `On the route at ${t.distanceFromSource} km but never charged` }))));
+      out.replaceChildren(el('table', {}, el('thead', {}, el('tr', {}, ...['Charged as', 'Status', 'Matched plaza', 'Note'].map((h) => el('th', { textContent: h })))),
+        el('tbody', {}, ...rows)));
+      auditLayer.clearLayers();
+      json.charges.filter((c) => c.status === 'OFF_ROUTE').forEach((c) => {
+        L.marker([c.latitude, c.longitude], { icon: pin('!', 'off') })
+          .bindPopup(`<b>${escapeHtml(c.matchedPlaza)}</b><br>${escapeHtml(c.note)}`).addTo(auditLayer);
+      });
+    } catch (e) {
+      status.className = 'status error';
+      status.textContent = e.message;
+    } finally {
+      $('audit-btn').disabled = false;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  $('plan-form').addEventListener('submit', (e) => { e.preventDefault(); plan(); });
+  $('audit-btn').addEventListener('click', audit);
+  document.querySelectorAll('.presets button').forEach((b) => b.addEventListener('click', () => {
+    $('src').value = b.dataset.src;
+    $('dst').value = b.dataset.dst;
+    plan();
+  }));
+  plan();
+})();
+</script>
+</body>
+</html>

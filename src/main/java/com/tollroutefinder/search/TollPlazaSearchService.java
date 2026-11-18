@@ -28,6 +28,9 @@ public class TollPlazaSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(TollPlazaSearchService.class);
 
+    /** ~100 m: invisible on a map, and far below the 1 km tolerance used to decide whether a plaza is on the route. */
+    static final double PATH_SIMPLIFICATION_KM = 0.1;
+
     private final PincodeLocator pincodeLocator;
     private final RouteProvider routeProvider;
     private final TollPlazaMatcher matcher;
@@ -72,7 +75,8 @@ public class TollPlazaSearchService {
         log.info("{} -> {}: {} km via {}, {} toll plazas ({} ms)", sourcePincode, destinationPincode,
                 Math.round(route.distanceKm()), route.provider(), tolls.size(),
                 (System.nanoTime() - started) / 1_000_000);
-        return new TollPlazaSearchResult(sourcePincode, destinationPincode, route.distanceKm(), route.provider(), tolls);
+        return new TollPlazaSearchResult(sourcePincode, destinationPincode, route.distanceKm(), route.durationMinutes(),
+                route.provider(), route.line().simplified(PATH_SIMPLIFICATION_KM), tolls);
     }
 
     private PincodeLocation locate(String pincode) {

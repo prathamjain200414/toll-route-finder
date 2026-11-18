@@ -5,7 +5,7 @@ import com.tollroutefinder.geo.GeoMath;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
+import java.util.OptionalInt;
 
 /**
  * Collapses the many duplicate records in the source data into one record per physical toll plaza.
@@ -18,14 +18,10 @@ import java.util.regex.Pattern;
  *       vs "Nelamangala". Containment is weaker evidence (a bare city name), hence the tighter radius.</li>
  * </ul>
  * The first named record in a cluster provides the name and coordinates, so the output is deterministic.
- * Unnamed records ("nan", blank) join a nearby named plaza if there is one.
+ * Unnamed records ("nan", blank) join a nearby named plaza if there is one. Name comparison is in {@link PlazaNames}.
  */
 public class TollPlazaDeduplicator {
 
-    private static final Pattern NOISE_WORDS = Pattern.compile("\\b(toll|plaza|plaz|booth|gate|tollway)\\b");
-    private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^a-z0-9]");
-    private static final int MAX_TYPO_DISTANCE = 2;
-    private static final int MIN_LENGTH_FOR_FUZZY_MATCH = 5;
     static final double CONTAINED_NAME_RADIUS_KM = 1.0;
 
     private final double duplicateRadiusKm;
@@ -65,53 +61,17 @@ public class TollPlazaDeduplicator {
     }
 
     private static boolean namesMatch(String a, String b, double distanceKm) {
-        if (a.isEmpty() || b.isEmpty()) {
-            return false;
-        }
-        if (a.equals(b)) {
-            return true;
-        }
-        if (Math.min(a.length(), b.length()) < MIN_LENGTH_FOR_FUZZY_MATCH) {
-            return false;
-        }
-        if (levenshtein(a, b) <= MAX_TYPO_DISTANCE) {
-            return true;
-        }
-        return distanceKm <= CONTAINED_NAME_RADIUS_KM && (a.contains(b) || b.contains(a));
+        OptionalInt score = PlazaNames.matchScore(a, b);
+        return score.isPresent()
+                && (score.getAsInt() < PlazaNames.CONTAINMENT_SCORE || distanceKm <= CONTAINED_NAME_RADIUS_KM);
     }
 
-    /**
-     * Lower-cases, removes words like "toll plaza"/"booth"/"gate" and strips punctuation, so that
-     * "Khed-Shivapur Toll Plaza" and "Khedshivapur Toll Plaza" compare equal. "nan" and blanks become empty.
-     */
     static String normalise(String name) {
-        if (name == null) {
-            return "";
-        }
-        String lower = name.trim().toLowerCase(Locale.ROOT);
-        if (lower.equals("nan") || lower.equals("null")) {
-            return "";
-        }
-        return NON_ALPHANUMERIC.matcher(NOISE_WORDS.matcher(lower).replaceAll("")).replaceAll("");
+        return PlazaNames.normalise(name);
     }
 
     static int levenshtein(String a, String b) {
-        int[] previous = new int[b.length() + 1];
-        int[] current = new int[b.length() + 1];
-        for (int j = 0; j <= b.length(); j++) {
-            previous[j] = j;
-        }
-        for (int i = 1; i <= a.length(); i++) {
-            current[0] = i;
-            for (int j = 1; j <= b.length(); j++) {
-                int cost = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
-                current[j] = Math.min(Math.min(current[j - 1] + 1, previous[j] + 1), previous[j - 1] + cost);
-            }
-            int[] swap = previous;
-            previous = current;
-            current = swap;
-        }
-        return previous[b.length()];
+        return PlazaNames.levenshtein(a, b);
     }
 
     static String keyFor(String normalisedName, double lat, double lon) {
