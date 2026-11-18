@@ -52,7 +52,8 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         return Ordered.LOWEST_PRECEDENCE;
     }
 
-    private static java.util.Optional<Connection> convert(String url, String variable) {
+    private static java.util.Optional<Connection> convert(String rawUrl, String variable) {
+        String url = rawUrl == null ? null : rawUrl.strip(); // tolerate whitespace pasted into dashboards
         if (url == null || !(url.startsWith("postgres://") || url.startsWith("postgresql://"))) {
             return java.util.Optional.empty();
         }

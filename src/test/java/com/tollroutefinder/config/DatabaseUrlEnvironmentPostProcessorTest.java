@@ -62,6 +62,13 @@ class DatabaseUrlEnvironmentPostProcessorTest {
     }
 
     @Test
+    void ignoresWhitespacePastedAroundTheUrl() {
+        ConfigurableEnvironment env = process(Map.of("DATABASE_URL", "  postgresql://u:p@host.neon.tech/db?sslmode=require\n"));
+
+        assertThat(env.getProperty("spring.datasource.url")).isEqualTo("jdbc:postgresql://host.neon.tech:5432/db?sslmode=require");
+    }
+
+    @Test
     void leavesJdbcUrlsAlone() {
         ConfigurableEnvironment env = process(Map.of("DATABASE_URL", "jdbc:postgresql://localhost:5432/tolls"));
 

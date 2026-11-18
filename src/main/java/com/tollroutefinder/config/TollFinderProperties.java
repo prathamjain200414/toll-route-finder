@@ -44,6 +44,11 @@ public record TollFinderProperties(@Valid @NotNull Data data,
                       @NotNull Duration connectTimeout,
                       @NotNull Duration readTimeout) {
 
+        public Ors {
+            // Keys pasted into dashboards often pick up a trailing newline, which is illegal in an HTTP header.
+            apiKey = apiKey == null ? null : apiKey.strip();
+        }
+
         public boolean enabled() {
             return apiKey != null && !apiKey.isBlank();
         }
