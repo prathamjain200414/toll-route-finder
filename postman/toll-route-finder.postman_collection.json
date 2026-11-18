@@ -1,0 +1,837 @@
+{
+  "info": {
+    "_postman_id": "ac49258b-c1bb-4a41-9096-9910be8de3a6",
+    "name": "Toll Route Finder",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Toll plazas between two Indian pincodes. Set `baseUrl` to http://localhost:8080 to run locally. The hosted server sleeps when idle: run \"Wake the server\" first (it can take ~2 minutes)."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://toll-route-finder.onrender.com"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Wake the server (health)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/actuator/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "actuator",
+            "health"
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Toll plazas (required API)",
+      "item": [
+        {
+          "name": "Bengaluru 560064 -> Pune 411045 (Mappls test case)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response has the specified shape\", () => {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.route).to.have.all.keys(\"sourcePincode\", \"destinationPincode\", \"distanceInKm\");",
+                  "  j.tollPlazas.forEach(t => pm.expect(t).to.have.all.keys(\"name\", \"latitude\", \"longitude\", \"distanceFromSource\"));",
+                  "});",
+                  "pm.test(\"Plazas are ordered by distance from source\", () => {",
+                  "  const d = pm.response.json().tollPlazas.map(t => t.distanceFromSource);",
+                  "  pm.expect(d).to.eql([...d].sort((a, b) => a - b));",
+                  "});",
+                  "pm.test(\"Finds the 12 plazas on the route\", () => pm.expect(pm.response.json().tollPlazas.length).to.eql(12));",
+                  "pm.test(\"Road distance ~854 km\", () => pm.expect(pm.response.json().route.distanceInKm).to.be.within(840, 870));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Same request again -> served from cache",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"X-Cache is HIT\", () => pm.response.to.have.header(\"X-Cache\", \"HIT\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delhi 110001 -> Bengaluru 560001 (long route)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"110001\",\n  \"destinationPincode\": \"560001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response has the specified shape\", () => {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.route).to.have.all.keys(\"sourcePincode\", \"destinationPincode\", \"distanceInKm\");",
+                  "  j.tollPlazas.forEach(t => pm.expect(t).to.have.all.keys(\"name\", \"latitude\", \"longitude\", \"distanceFromSource\"));",
+                  "});",
+                  "pm.test(\"Plazas are ordered by distance from source\", () => {",
+                  "  const d = pm.response.json().tollPlazas.map(t => t.distanceFromSource);",
+                  "  pm.expect(d).to.eql([...d].sort((a, b) => a - b));",
+                  "});",
+                  "pm.test(\"Many plazas\", () => pm.expect(pm.response.json().tollPlazas.length).to.be.above(25));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Within Bengaluru 560001 -> 560034 (no tolls)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560001\",\n  \"destinationPincode\": \"560034\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Empty tollPlazas list\", () => pm.expect(pm.response.json().tollPlazas).to.eql([]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Errors",
+      "item": [
+        {
+          "name": "Same source and destination",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"560064\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Source and destination pincodes cannot be the same\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid format (5 digits)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"56006\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Invalid source or destination pincode\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Non-existent pincode 100000",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"100000\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Invalid source or destination pincode\"));",
+                  "pm.test(\"Says which pincode\", () => pm.expect(pm.response.json().details[0]).to.include(\"100000\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Army Postal Service pincode (9xxxxx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"999999\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Invalid source or destination pincode\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Invalid source or destination pincode\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Malformed JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"sourcePincode\": \"560064\",",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Request body is missing or is not valid JSON\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No road route: Port Blair 744101 -> Chennai 600001",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"744101\",\n  \"destinationPincode\": \"600001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Has error\", () => pm.expect(pm.response.json().error).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong method (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 405\", () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong content type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/toll-plazas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "toll-plazas"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "sourcePincode=560064",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 415\", () => pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Extensions",
+      "item": [
+        {
+          "name": "Trip plan: ETAs, e-way bill validity, GeoJSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/trips/plan",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "plan"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"E-way bill validity is 5 days for ~854 km\", () => pm.expect(pm.response.json().route.ewayBillValidityDays).to.eql(5));",
+                  "pm.test(\"Route geometry is GeoJSON\", () => pm.expect(pm.response.json().path.type).to.eql(\"LineString\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toll audit: Mappls' 14 tolls vs our route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/trips/toll-audit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "toll-audit"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"411045\",\n  \"chargedTollPlazas\": [\n    \"Navayuga Bengaluru\",\n    \"Kulumepalya\",\n    \"Chokkanahalli\",\n    \"Karajeevanahalli\",\n    \"Guilalu\",\n    \"Kannanakatte\",\n    \"Thimmalapura\",\n    \"Hitnal\",\n    \"Shahapur\",\n    \"Vanagari\",\n    \"Nagarhalla\",\n    \"Kasaba Bijapur\",\n    \"Sardewadi Indapur\",\n    \"Patas\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"11 of Mappls' names are on our route\", () => pm.expect(pm.response.json().summary.onRoute).to.eql(11));",
+                  "pm.test(\"Sardewadi and Patas flagged off-route\", () => pm.expect(pm.response.json().summary.offRoute).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toll audit: duplicate and deviation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/trips/toll-audit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "toll-audit"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"411045\",\n  \"chargedTollPlazas\": [\n    \"Nelamangala\",\n    \"Kulumapalya\",\n    \"Hitnal\",\n    \"Hitnal\",\n    \"Khed Shivapur\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Verdict REVIEW\", () => pm.expect(pm.response.json().summary.verdict).to.eql(\"REVIEW\"));",
+                  "pm.test(\"One duplicate\", () => pm.expect(pm.response.json().summary.duplicateCharges).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toll audit: missing list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/trips/toll-audit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "toll-audit"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePincode\": \"560064\",\n  \"destinationPincode\": \"411045\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error message\", () => pm.expect(pm.response.json().error).to.eql(\"Invalid request\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
