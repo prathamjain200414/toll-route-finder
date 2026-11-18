@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: toll-route-finder
+  datasource:
+    # Local default: in-memory H2 in PostgreSQL mode. Production overrides via env vars (Neon Postgres).
+    url: ${DATABASE_URL:jdbc:h2:mem:tolls;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=5000,expireAfterWrite=24h
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+toll-finder:
+  data:
+    toll-plaza-csv: classpath:data/toll_plazas.csv
+    pincode-csv: classpath:data/pincodes.csv
+  matching:
+    # A toll plaza counts as "on the route" if it lies within this distance of the route line.
+    max-distance-from-route-km: 1.0
+    # Records closer than this are treated as the same physical plaza during de-duplication.
+    duplicate-radius-km: 0.3
+  routing:
+    osrm:
+      base-url: ${OSRM_BASE_URL:https://router.project-osrm.org}
+      profile: driving
+      connect-timeout: 5s
+      read-timeout: 20s
+    ors:
+      # Free key (no card) from https://openrouteservice.org/dev/#/signup. When set, the truck (HGV) profile is the
+      # primary router and OSRM becomes the fallback.
+      api-key: ${ORS_API_KEY:}
+      base-url: ${ORS_BASE_URL:https://api.openrouteservice.org}
+      profile: driving-hgv
+      connect-timeout: 5s
+      read-timeout: 25s
+    retry:
+      max-attempts: 2
+      backoff: 300ms
